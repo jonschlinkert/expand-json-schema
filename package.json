@@ -1,7 +1,7 @@
 {
   "name": "expand-json-schema",
   "description": "Light weight JSON Schema $ref resolver. Expands a JSON Schema by resolving `$ref` references from a mapping of definitions. Does not handle remote references. Has comprehensive unit tests and no dependencies.",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/jonschlinkert/expand-json-schema"
