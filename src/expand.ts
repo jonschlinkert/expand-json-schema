@@ -1,3 +1,5 @@
+export const default_paths = ['components', 'schemas'];
+
 export const default_sort_order = [
   '$id',
   '$schema',
@@ -19,12 +21,14 @@ export const sortKeys = (schema: any, order: string[] = default_sort_order): any
     if (isObject(obj)) {
       const sortedObj = {};
 
+      // Apply sort order first
       for (const key of order) {
         if (obj.hasOwnProperty(key)) {
           sortedObj[key] = walk(obj[key]);
         }
       }
 
+      // Then add remaining keys
       for (const [key, value] of Object.entries(obj)) {
         if (!order.includes(key)) {
           sortedObj[key] = walk(value);
@@ -37,14 +41,18 @@ export const sortKeys = (schema: any, order: string[] = default_sort_order): any
     return obj;
   };
 
-  const keys = Object.keys(schema.properties).sort();
-  const properties = {};
+  // Only sort properties if they exist
+  if (schema.properties) {
+    const keys = Object.keys(schema.properties).sort();
+    const properties = {};
 
-  for (const key of keys) {
-    properties[key] = schema.properties[key];
+    for (const key of keys) {
+      properties[key] = schema.properties[key];
+    }
+
+    schema.properties = properties;
   }
 
-  schema.properties = properties;
   return walk(schema);
 };
 
@@ -57,15 +65,16 @@ export const getDefName = (ref: string) => {
     .join('');
 };
 
-export const convertToDefRef = (ref: string) => {
-  if (ref.startsWith('#/components/')) {
-    const defName = getDefName(ref);
-    return `#/definitions/${defName}`;
+const escapePaths = (paths: string[]) => paths.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
+export const convertToDefRef = (ref: string, regex = /^#\/(components|schemas)\//) => {
+  if (regex.test(ref)) {
+    return `#/definitions/${getDefName(ref)}`;
   }
   return ref;
 };
 
-export const resolveRef = (schema, ref: string) => {
+export const resolveRef = (schema: any, ref: string) => {
   const parts = ref.slice(2).split('/');
 
   let value = schema;
@@ -80,42 +89,60 @@ export const resolveRef = (schema, ref: string) => {
   return value;
 };
 
-export const expandSchema = (prop: any, schema: any, options) => {
+export interface ExpandOptions {
+  paths?: string[];
+  sortOrder?: string[];
+}
+
+export const expandSchema = (schema: any, definitions: any = {}, options: ExpandOptions = {}) => {
+  const paths = options?.paths || default_paths;
+  const regex = new RegExp(`^#/(${escapePaths(paths).join('|')})/`);
+
   const cache = new Map();
   const defs = {};
 
   // eslint-disable-next-line complexity
-  const expand = (prop: any, isRoot = false) => {
-    if (!prop || typeof prop !== 'object') {
-      return prop;
+  const expand = (schema: any, isRoot = false) => {
+    if (!schema || typeof schema !== 'object') {
+      return schema;
+    }
+
+    // Handle if/then/else schemas
+    if (schema.if && schema.then) {
+      schema.if = expand(schema.if);
+      schema.then = expand(schema.then);
+
+      if (schema.else) {
+        schema.else = expand(schema.else);
+      }
     }
 
     // Handle nullable properties
-    if (prop.nullable) {
-      if (prop.oneOf) {
+    if (schema.nullable) {
+      if (schema.oneOf) {
         let hasNull = false;
-        for (let i = 0; i < prop.oneOf.length; i++) {
-          if (prop.oneOf[i].type === 'null') {
+        for (let i = 0; i < schema.oneOf.length; i++) {
+          if (schema.oneOf[i].type === 'null') {
             hasNull = true;
             break;
           }
         }
         if (!hasNull) {
-          prop.oneOf.unshift({ type: 'null' });
+          schema.oneOf.unshift({ type: 'null' });
         }
-      } else if (prop.anyOf) {
+      } else if (schema.anyOf) {
         let hasNull = false;
-        for (let i = 0; i < prop.anyOf.length; i++) {
-          if (prop.anyOf[i].type === 'null') {
+        for (let i = 0; i < schema.anyOf.length; i++) {
+          if (schema.anyOf[i].type === 'null') {
             hasNull = true;
             break;
           }
         }
         if (!hasNull) {
-          prop.anyOf.unshift({ type: 'null' });
+          schema.anyOf.unshift({ type: 'null' });
         }
-      } else if (prop.type) {
-        const types = Array.isArray(prop.type) ? [...prop.type] : [prop.type];
+      } else if (schema.type) {
+        const types = Array.isArray(schema.type) ? [...schema.type] : [schema.type];
         let hasNull = false;
         for (let i = 0; i < types.length; i++) {
           if (types[i] === 'null') {
@@ -126,49 +153,49 @@ export const expandSchema = (prop: any, schema: any, options) => {
         if (!hasNull) {
           types.push('null');
         }
-        prop.type = types;
+        schema.type = types;
       }
-      delete prop.nullable;
+      delete schema.nullable;
     }
 
     // Handle discriminator mappings
-    if (prop.discriminator?.mapping) {
+    if (schema.discriminator?.mapping) {
       const newMapping = {};
-      const keys = Object.keys(prop.discriminator.mapping);
+      const keys = Object.keys(schema.discriminator.mapping);
       for (let i = 0; i < keys.length; i++) {
         const key = keys[i];
-        newMapping[key] = convertToDefRef(prop.discriminator.mapping[key]);
+        newMapping[key] = convertToDefRef(schema.discriminator.mapping[key], regex);
       }
-      prop.discriminator.mapping = newMapping;
+      schema.discriminator.mapping = newMapping;
     }
 
     // Handle additional mapping property
-    if (prop.mapping) {
+    if (schema.mapping) {
       const newMapping = {};
-      const keys = Object.keys(prop.mapping);
+      const keys = Object.keys(schema.mapping);
       for (let i = 0; i < keys.length; i++) {
         const key = keys[i];
-        newMapping[key] = convertToDefRef(prop.mapping[key]);
+        newMapping[key] = convertToDefRef(schema.mapping[key], regex);
       }
-      prop.mapping = newMapping;
+      schema.mapping = newMapping;
     }
 
     // Handle $ref resolution
-    if (prop.$ref) {
-      const originalRef = prop.$ref;
+    if (schema.$ref) {
+      const originalRef = schema.$ref;
 
       // For root object, expand it fully
       if (isRoot) {
-        const resolvedRef = resolveRef(schema, originalRef);
-        const rest = { ...prop };
+        const resolvedRef = resolveRef(definitions, originalRef);
+        const rest = { ...schema };
         delete rest.$ref;
         return expand({ ...rest, ...resolvedRef }, true);
       }
 
       // Convert to definition ref
-      const newRef = convertToDefRef(originalRef);
+      const newRef = convertToDefRef(originalRef, regex);
 
-      // For nested refs, check cache or create new definition
+      // Check cache or create new definition
       if (cache.has(originalRef)) {
         return { $ref: cache.get(originalRef) };
       }
@@ -178,8 +205,8 @@ export const expandSchema = (prop: any, schema: any, options) => {
       // Only create the definition if it doesn't exist
       const defName = getDefName(originalRef);
       if (!defs[defName]) {
-        const resolvedRef = resolveRef(schema, originalRef);
-        const rest = { ...prop };
+        const resolvedRef = resolveRef(definitions, originalRef);
+        const rest = { ...schema };
         delete rest.$ref;
         defs[defName] = expand({ ...rest, ...resolvedRef });
       }
@@ -188,10 +215,10 @@ export const expandSchema = (prop: any, schema: any, options) => {
     }
 
     // Handle arrays
-    if (Array.isArray(prop)) {
+    if (Array.isArray(schema)) {
       const result = [];
-      for (let i = 0; i < prop.length; i++) {
-        const item = prop[i];
+      for (let i = 0; i < schema.length; i++) {
+        const item = schema[i];
         if (item && typeof item === 'object') {
           result.push(expand(item));
         } else {
@@ -202,7 +229,7 @@ export const expandSchema = (prop: any, schema: any, options) => {
     }
 
     // Handle nested objects
-    const result = { ...prop };
+    const result = { ...schema };
     const keys = Object.keys(result);
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i];
@@ -216,7 +243,7 @@ export const expandSchema = (prop: any, schema: any, options) => {
     return result;
   };
 
-  const expanded = expand(prop, true);
+  const expanded = expand(schema, true);
 
   if (Object.keys(defs).length > 0) {
     expanded.definitions = { ...expanded.definitions, ...defs };
@@ -224,3 +251,5 @@ export const expandSchema = (prop: any, schema: any, options) => {
 
   return sortKeys(expanded, options?.sortOrder);
 };
+
+export default expandSchema;

@@ -2,16 +2,7 @@ import { defineConfig } from 'tsup';
 
 export default defineConfig({
   clean: true,
-  entry: {
-    index: 'src/index.ts',
-    brandscale: 'src/providers/brandscale',
-    cohere: 'src/providers/cohere',
-    helpers: 'src/helpers.ts',
-    json: 'src/json',
-    openai: 'src/providers/openai',
-    schema: 'src/Schema.ts',
-    providers: 'src/providers'
-  },
+  entry: ['src/expand.ts'],
   cjsInterop: true,
   format: ['cjs', 'esm'],
   keepNames: true,

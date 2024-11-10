@@ -1,7 +1,15 @@
 {
-  "name": "@brandscale/schemas",
-  "description": "Schemas",
-  "version": "0.0.4",
+  "name": "expand-json-schema",
+  "description": "Light weight JSON Schema $ref resolver. Expands a JSON Schema by resolving `$ref` references from a mapping of definitions. Does not handle remote references. Has comprehensive unit tests and no dependencies.",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jonschlinkert/expand-json-schema"
+  },
+  "author": {
+    "name": "Jon Schlinkert",
+    "url": "https://github.com/jonschlinkert"
+  },
   "scripts": {
     "eslint": "npx eslint --ext .ts .",
     "test": "ts-mocha -r esbuild-register 'test/**/*.ts'",
@@ -24,11 +32,68 @@
     "@typescript-eslint/parser": "^8.13.0",
     "esbuild-register": "^3.5.0",
     "eslint": "^8.57.0",
+    "gulp-format-md": "^2.0.0",
     "prettier": "^3.3.3",
     "ts-mocha": "^10.0.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "tsup": "^8.0.2",
     "typescript": "^5.4.5"
-  }
+  },
+  "verb": {
+    "toc": false,
+    "layout": "default",
+    "tasks": [
+      "readme"
+    ],
+    "plugins": [
+      "gulp-format-md"
+    ],
+    "reflinks": [
+      "verb"
+    ],
+    "lint": {
+      "reflinks": true
+    }
+  },
+  "keywords": [
+    "$defs",
+    "ai",
+    "ajv",
+    "anthropic",
+    "claude",
+    "cohere",
+    "definitions",
+    "doowb",
+    "expand",
+    "expansion",
+    "function calling",
+    "function",
+    "gpt-4",
+    "gpt-4o",
+    "groq",
+    "jonschlinkert",
+    "json ref",
+    "json reference",
+    "json-schema",
+    "json",
+    "llm tools",
+    "llm",
+    "oas",
+    "ollama",
+    "openai",
+    "openapi",
+    "ref",
+    "reference",
+    "refs",
+    "resolve",
+    "resolver",
+    "schema",
+    "swagger",
+    "tool calling",
+    "tool_calls",
+    "tool",
+    "tools",
+    "zod"
+  ]
 }
